@@ -16,6 +16,7 @@ using namespace Microsoft::WRL;
 using namespace Windows::Media::MediaProperties;
 using namespace Windows::Media::Capture;
 using namespace Windows::UI::Xaml::Media::Imaging;
+using namespace Windows::Devices::Enumeration;
 
 HWinRTVideoCapture WinRTVideoCapture::create(int width, int height)
 {
@@ -38,10 +39,30 @@ WinRTVideoCapture::~WinRTVideoCapture()
 void WinRTVideoCapture::start(const std::function<void(const cv::Mat&)>& callback)
 {
     m_callback = callback;
-
-    auto settings = ref new MediaCaptureInitializationSettings();
-    settings->StreamingCaptureMode = StreamingCaptureMode::Video; // Video-only capture
     m_capture = ref new MediaCapture();
+
+    create_task(DeviceInformation::FindAllAsync(DeviceClass::VideoCapture)).then([this](DeviceInformationCollection ^devices){
+        auto settings = ref new MediaCaptureInitializationSettings();
+        settings->StreamingCaptureMode = StreamingCaptureMode::Video; // Video-only capture
+
+        auto iterator = devices->First();
+        while (iterator->HasCurrent) {
+            DeviceInformation ^information = iterator->Current;
+
+            if (information->EnclosureLocation->Panel == Windows::Devices::Enumeration::Panel::Back) {
+                settings->VideoDeviceId = information->Id;
+                break;
+            }
+
+            iterator->MoveNext();
+        }
+
+        CreateAsync(settings);
+    });
+}
+
+void WinRTVideoCapture::CreateAsync(MediaCaptureInitializationSettings ^settings)
+{
     create_task(m_capture->InitializeAsync(settings)).then([this](){
 
         auto props = safe_cast<VideoEncodingProperties^>(m_capture->VideoDeviceController->GetMediaStreamProperties(MediaStreamType::VideoPreview));
@@ -55,7 +76,6 @@ void WinRTVideoCapture::start(const std::function<void(const cv::Mat&)>& callbac
     {
         GrabFrameAsync(frameGrabber);
     });
-
 }
 
 void WinRTVideoCapture::stop()

@@ -34,6 +34,8 @@ public:
 private:
 
     void GrabFrameAsync(::Media::CaptureFrameGrabber^ frameGrabber);
+    void CreateAsync(Windows::Media::Capture::MediaCaptureInitializationSettings ^settings);
+
     Platform::Agile<WMC::MediaCapture> m_capture;
     std::function<void(const cv::Mat& mat)> m_callback;
 
